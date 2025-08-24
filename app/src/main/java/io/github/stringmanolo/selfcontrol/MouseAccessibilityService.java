@@ -6,6 +6,8 @@ import android.graphics.Color;
 import android.graphics.Path;
 import android.os.Build;
 import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.View;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.ScrollView;
@@ -21,6 +23,7 @@ public class MouseAccessibilityService extends AccessibilityService {
     private WindowManager windowManager;
     private TextView logTextView;
     private ScrollView scrollView;
+    private TextView closeButton;
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) { }
@@ -36,19 +39,16 @@ public class MouseAccessibilityService extends AccessibilityService {
         setupOverlay();
         log("AccessibilityService conectado");
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                log("Iniciando TCPServer");
-                new TCPServer().run();
-            }
+        new Thread(() -> {
+            log("Iniciando TCPServer");
+            new TCPServer().run();
         }).start();
     }
 
     // Gestos
     public void performTap(float x, float y) {
         log("Tap en: " + x + "," + y);
-        showTapIndicator(x, y); // Mostrar indicador visual
+        showTapIndicator(x, y);
         Path path = new Path();
         path.moveTo(x, y);
         GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, 50);
@@ -71,7 +71,18 @@ public class MouseAccessibilityService extends AccessibilityService {
         performGlobalAction(action);
     }
 
-    // Overlay click-through con logs
+    // Enviar texto al teclado
+    public void performKeyboard(String input) {
+        log("Escribiendo teclado: " + input);
+        for (char c : input.toCharArray()) {
+            KeyEvent event = new KeyEvent(KeyEvent.ACTION_DOWN, c);
+            dispatchKeyEvent(event);
+            event = new KeyEvent(KeyEvent.ACTION_UP, c);
+            dispatchKeyEvent(event);
+        }
+    }
+
+    // Overlay click-through con logs y botón cerrar
     private void setupOverlay() {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
@@ -84,44 +95,68 @@ public class MouseAccessibilityService extends AccessibilityService {
 
         scrollView.addView(logTextView);
 
-        WindowManager.LayoutParams params;
+        WindowManager.LayoutParams logParams;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            params = new WindowManager.LayoutParams(
+            logParams = new WindowManager.LayoutParams(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.WRAP_CONTENT,
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |  // click-through
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                     android.graphics.PixelFormat.TRANSLUCENT);
         } else {
-            params = new WindowManager.LayoutParams(
+            logParams = new WindowManager.LayoutParams(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.WRAP_CONTENT,
                     WindowManager.LayoutParams.TYPE_PHONE,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |  // click-through
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                     android.graphics.PixelFormat.TRANSLUCENT);
         }
-        params.gravity = Gravity.TOP;
-        windowManager.addView(scrollView, params);
+        logParams.gravity = Gravity.TOP;
+        windowManager.addView(scrollView, logParams);
+
+        // Botón flotante para cerrar overlay
+        closeButton = new TextView(this);
+        closeButton.setText("X");
+        closeButton.setTextColor(Color.WHITE);
+        closeButton.setBackgroundColor(Color.argb(200, 255, 0, 0));
+        closeButton.setTextSize(18);
+        closeButton.setPadding(10, 10, 10, 10);
+
+        WindowManager.LayoutParams btnParams;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            btnParams = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    android.graphics.PixelFormat.TRANSLUCENT);
+        } else {
+            btnParams = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    android.graphics.PixelFormat.TRANSLUCENT);
+        }
+        btnParams.gravity = Gravity.TOP | Gravity.END;
+        btnParams.x = 10;
+        btnParams.y = 10;
+
+        closeButton.setOnClickListener(v -> removeOverlay());
+
+        windowManager.addView(closeButton, btnParams);
     }
 
     // Mostrar logs en overlay
     private void log(final String message) {
         if (logTextView != null) {
-            logTextView.post(new Runnable() {
-                @Override
-                public void run() {
-                    logTextView.append(message + "\n");
-                    scrollView.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            scrollView.fullScroll(ScrollView.FOCUS_DOWN);
-                        }
-                    });
-                }
+            logTextView.post(() -> {
+                logTextView.append(message + "\n");
+                scrollView.post(() -> scrollView.fullScroll(ScrollView.FOCUS_DOWN));
             });
         }
     }
@@ -160,14 +195,24 @@ public class MouseAccessibilityService extends AccessibilityService {
 
         windowManager.addView(tapView, params);
 
-        tapView.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    windowManager.removeView(tapView);
-                } catch (Exception e) { }
-            }
+        tapView.postDelayed(() -> {
+            try {
+                windowManager.removeView(tapView);
+            } catch (Exception e) { }
         }, 500);
+    }
+
+    // Remover overlay y botón
+    private void removeOverlay() {
+        try {
+            if (scrollView != null) windowManager.removeView(scrollView);
+            if (closeButton != null) windowManager.removeView(closeButton);
+            scrollView = null;
+            logTextView = null;
+            closeButton = null;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     // TCPServer multicliente
@@ -183,22 +228,19 @@ public class MouseAccessibilityService extends AccessibilityService {
                     final Socket client = server.accept();
                     log("Cliente conectado: " + client.getInetAddress());
 
-                    new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
-                                String line;
-                                while ((line = in.readLine()) != null) {
-                                    line = line.trim();
-                                    log("Comando recibido: " + line);
-                                    handleCommand(line);
-                                }
-                            } catch (Exception e) {
-                                log("Cliente desconectado o error: " + e.getMessage());
-                            } finally {
-                                try { client.close(); } catch (Exception ex) {}
+                    new Thread(() -> {
+                        try {
+                            BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                            String line;
+                            while ((line = in.readLine()) != null) {
+                                line = line.trim();
+                                log("Comando recibido: " + line);
+                                handleCommand(line);
                             }
+                        } catch (Exception e) {
+                            log("Cliente desconectado o error: " + e.getMessage());
+                        } finally {
+                            try { client.close(); } catch (Exception ex) {}
                         }
                     }).start();
                 }
@@ -227,6 +269,9 @@ public class MouseAccessibilityService extends AccessibilityService {
                     performGlobal(GLOBAL_ACTION_HOME);
                 } else if (line.contains("\"action\":\"back\"")) {
                     performGlobal(GLOBAL_ACTION_BACK);
+                } else if (line.contains("\"action\":\"keyboard\"")) {
+                    String text = line.split("\"text\":\"")[1].split("\"")[0];
+                    performKeyboard(text);
                 } else {
                     log("Comando no reconocido: " + line);
                 }
@@ -236,3 +281,4 @@ public class MouseAccessibilityService extends AccessibilityService {
         }
     }
 }
+
