@@ -15,15 +15,37 @@ keyboard() {
     local input="$1"
     local char key x y
     local in_num=false
-    local shift_on=false
+
+    # regex de números y símbolos (todo lo que se escribe desde NUMERIC)
+    local NUMERIC_REGEX='[0-9@#\$%&*+\-\(\)!\"'"'"':;\/?,\.]'
 
     for (( i=0; i<${#input}; i++ )); do
         char="${input:$i:1}"
 
-        # Mapear alias de caracteres especiales
+        # ==== Cambio automático entre layouts (antes de mapear alias) ====
+        if [[ "$char" =~ $NUMERIC_REGEX ]]; then
+            if [ "$in_num" = false ]; then
+                eval "x=\${KEYBOARD_MAP_NUM_X}"
+                eval "y=\${KEYBOARD_MAP_NUM_Y}"
+                tap $x $y
+                in_num=true
+                sleep 0.2
+            fi
+        else
+            if [ "$in_num" = true ]; then
+                eval "x=\${KEYBOARD_MAP_ABC_X}"
+                eval "y=\${KEYBOARD_MAP_ABC_Y}"
+                tap $x $y
+                in_num=false
+                sleep 0.2
+            fi
+        fi
+
+        # ==== Mapear alias de caracteres especiales ====
         case "$char" in
-            " ")   key="SPACE" ;;        # espacio
+            " ")   key="SPACE" ;;
             "ñ")   key="ENYE" ;;
+            "Ñ")   key="ENYEMAYUS" ;;
             "@")   key="AT" ;;
             "#")   key="HASH" ;;
             "$")   key="DOLLAR" ;;
@@ -35,52 +57,44 @@ keyboard() {
             "(")   key="LPAREN" ;;
             ")")   key="RPAREN" ;;
             "!")   key="EXCL" ;;
-            "\"")  key="QUOTE" ;;        # comillas dobles
-            "'")   key="APOST" ;;        # apóstrofe
+            "\"")  key="QUOTE" ;;
+            "'")   key="APOST" ;;
             ":")   key="COLON" ;;
             ";")   key="SEMI" ;;
             "/")   key="SLASH" ;;
             "?")   key="QMARK" ;;
             ",")   key="COMMA" ;;
             ".")   key="DOT" ;;
-            *)     key="$char" ;;        # letras y números normales
+            *)     key="$char" ;;
         esac
 
-
-        # Determinar si es un número
-        if [[ "$char" =~ [0-9] || "$key" =~ ^(AT|HASH|DOLLAR|PERCENT|AMP)$ ]]; then
-            if [ "$in_num" = false ]; then
-                eval "x=\${KEYBOARD_MAP_NUM_X}"; eval "y=\${KEYBOARD_MAP_NUM_Y}"
-                tap $x $y; in_num=true; sleep 0.2
-            fi
-        else
-            if [ "$in_num" = true ]; then
-                eval "x=\${KEYBOARD_MAP_ABC_X}"; eval "y=\${KEYBOARD_MAP_ABC_Y}"
-                tap $x $y; in_num=false; sleep 0.2
-            fi
+        # ==== Shift momentáneo para mayúsculas ====
+        if [[ "$char" =~ [A-Z] || "$char" == "Ñ" ]]; then
+            # Tap SHIFT antes de la letra
+            eval "x=\${KEYBOARD_MAP_SHIFT_X}"
+            eval "y=\${KEYBOARD_MAP_SHIFT_Y}"
+            tap $x $y
+            sleep 0.1
         fi
 
-        # Shift automático para letras
-        if [[ "$char" =~ [A-Z] ]]; then
-            if [ "$shift_on" = false ]; then
-                eval "x=\${KEYBOARD_MAP_SHIFT_X}"; eval "y=\${KEYBOARD_MAP_SHIFT_Y}"
-                tap $x $y; shift_on=true; sleep 0.2
-            fi
-        elif [[ "$char" =~ [a-z] ]]; then
-            if [ "$shift_on" = true ]; then
-                eval "x=\${KEYBOARD_MAP_SHIFT_X}"; eval "y=\${KEYBOARD_MAP_SHIFT_Y}"
-                tap $x $y; shift_on=false; sleep 0.2
-            fi
-        fi
-
-        # Buscar coordenadas de la tecla
-        eval "x=\${KEYBOARD_MAP_${key}_X}"; eval "y=\${KEYBOARD_MAP_${key}_Y}"
+        # ==== Tap letra ====
+        eval "x=\${KEYBOARD_MAP_${key}_X}"
+        eval "y=\${KEYBOARD_MAP_${key}_Y}"
         if [ -z "$x" ] || [ -z "$y" ]; then
             echo "⚠ Coordenadas para '$char' (clave $key) no encontradas, ignorando"
             continue
         fi
         tap $x $y
         sleep 0.1
+
+        # NO ES NECESARIO EN MI TECLADO (HACKERS KEYBOARD)
+        # Tap SHIFT de vuelta si era mayúscula
+        #if [[ "$char" =~ [A-Z] ]]; then
+        #    eval "x=\${KEYBOARD_MAP_SHIFT_X}"
+        #    eval "y=\${KEYBOARD_MAP_SHIFT_Y}"
+        #    tap $x $y
+        #    sleep 0.1
+        #fi
     done
 }
 
@@ -101,6 +115,7 @@ config_keyboard() {
         char=$1; x=$2; y=$3
         [[ -z "$char" || -z "$x" || -z "$y" ]] && { echo "Formato inválido"; continue; }
         [[ "$char" == "ñ" ]] && char="ENYE"
+        [[ "$char" == "Ñ" ]] && char="ENYEMAYUS"
         [[ "$char" == " " ]] && char="SPACE"
 
         # Evitar duplicados
@@ -116,7 +131,6 @@ config_keyboard() {
 special_mode() {
     echo "--- Modo SPECIAL ---"
     echo "Opciones: SPACE, SHIFT, ENTER, BACKSPACE, NUM, ABC, EXIT"
-
     while true; do
         read -p "Especial> " key
         [[ "$key" == "EXIT" ]] && break
@@ -165,7 +179,6 @@ numeric_mode() {
             ".") key="DOT" ;;
         esac
 
-
         grep -q "KEYBOARD_MAP_${key}_" "$0" && { read -p "Sobrescribir? (s/n): " resp; [[ "$resp" != "s" ]] && continue; sed -i "/KEYBOARD_MAP_${key}_/d" "$0"; }
 
         sed -i "/^# --- KEYBOARD MAP START ---$/a KEYBOARD_MAP_${key}_X=$x\nKEYBOARD_MAP_${key}_Y=$y" "$0"
@@ -182,6 +195,12 @@ show_keyboard() {
 # ------------------- MAPEO DE TECLADO -------------------
 # NO EDITAR MANUALMENTE ENTRE ESTOS COMENTARIOS
 # --- KEYBOARD MAP START ---
+KEYBOARD_MAP_BACKSPACE_X=380
+KEYBOARD_MAP_BACKSPACE_Y=1512
+KEYBOARD_MAP_SPACE_X=380
+KEYBOARD_MAP_SPACE_Y=1512
+KEYBOARD_MAP_ABC_X=80
+KEYBOARD_MAP_ABC_Y=1515
 KEYBOARD_MAP_x_X=207
 KEYBOARD_MAP_x_Y=1435
 KEYBOARD_MAP_DOT_X=550
@@ -244,14 +263,10 @@ KEYBOARD_MAP_1_X=42
 KEYBOARD_MAP_1_Y=1260
 KEYBOARD_MAP_NUM_X=70
 KEYBOARD_MAP_NUM_Y=1522
-KEYBOARD_MAP_BACKSPACE_X=360
-KEYBOARD_MAP_BACKSPACE_Y=1515
 KEYBOARD_MAP_ENTER_X=647
 KEYBOARD_MAP_ENTER_Y=1515
 KEYBOARD_MAP_SHIFT_X=63
 KEYBOARD_MAP_SHIFT_Y=1414
-KEYBOARD_MAP_SPACE_X=359
-KEYBOARD_MAP_SPACE_Y=1512
 KEYBOARD_MAP_m_X=573
 KEYBOARD_MAP_m_Y=1440
 KEYBOARD_MAP_n_X=508
@@ -266,6 +281,8 @@ KEYBOARD_MAP_z_X=155
 KEYBOARD_MAP_z_Y=1440
 KEYBOARD_MAP_ENYE_X=669
 KEYBOARD_MAP_ENYE_Y=1350
+KEYBOARD_MAP_ENYEMAYUS_X=669
+KEYBOARD_MAP_ENYEMAYUS_Y=1350
 KEYBOARD_MAP_k_X=529
 KEYBOARD_MAP_k_Y=1350
 KEYBOARD_MAP_j_X=467
@@ -304,6 +321,58 @@ KEYBOARD_MAP_h_X=400
 KEYBOARD_MAP_h_Y=1345
 KEYBOARD_MAP_a_X=45
 KEYBOARD_MAP_a_Y=1352
+KEYBOARD_MAP_A_X=45
+KEYBOARD_MAP_A_Y=1352
+KEYBOARD_MAP_B_X=439
+KEYBOARD_MAP_B_Y=1440
+KEYBOARD_MAP_C_X=293
+KEYBOARD_MAP_C_Y=1440
+KEYBOARD_MAP_D_X=186
+KEYBOARD_MAP_D_Y=1350
+KEYBOARD_MAP_E_X=176
+KEYBOARD_MAP_E_Y=1262
+KEYBOARD_MAP_F_X=243
+KEYBOARD_MAP_F_Y=1350
+KEYBOARD_MAP_G_X=318
+KEYBOARD_MAP_G_Y=1350
+KEYBOARD_MAP_H_X=400
+KEYBOARD_MAP_H_Y=1345
+KEYBOARD_MAP_I_X=531
+KEYBOARD_MAP_I_Y=1268
+KEYBOARD_MAP_J_X=467
+KEYBOARD_MAP_J_Y=1350
+KEYBOARD_MAP_K_X=529
+KEYBOARD_MAP_K_Y=1350
+KEYBOARD_MAP_L_X=604
+KEYBOARD_MAP_L_Y=1345
+KEYBOARD_MAP_M_X=573
+KEYBOARD_MAP_M_Y=1440
+KEYBOARD_MAP_N_X=508
+KEYBOARD_MAP_N_Y=1440
+KEYBOARD_MAP_O_X=600
+KEYBOARD_MAP_O_Y=1265
+KEYBOARD_MAP_P_X=673
+KEYBOARD_MAP_P_Y=1256
+KEYBOARD_MAP_Q_X=46
+KEYBOARD_MAP_Q_Y=1265
+KEYBOARD_MAP_R_X=240
+KEYBOARD_MAP_R_Y=1261
+KEYBOARD_MAP_S_X=119
+KEYBOARD_MAP_S_Y=1350
+KEYBOARD_MAP_T_X=320
+KEYBOARD_MAP_T_Y=1270
+KEYBOARD_MAP_U_X=476
+KEYBOARD_MAP_U_Y=1265
+KEYBOARD_MAP_V_X=361
+KEYBOARD_MAP_V_Y=1440
+KEYBOARD_MAP_W_X=110
+KEYBOARD_MAP_W_Y=1268
+KEYBOARD_MAP_X_X=207
+KEYBOARD_MAP_X_Y=1435
+KEYBOARD_MAP_Y_X=397
+KEYBOARD_MAP_Y_Y=1256
+KEYBOARD_MAP_Z_X=155
+KEYBOARD_MAP_Z_Y=1440
 # --- KEYBOARD MAP END ---
 
 # ------------------- Menú principal -------------------
