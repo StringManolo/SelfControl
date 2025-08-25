@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.graphics.Path;
 import android.os.Build;
 import android.view.Gravity;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
@@ -39,9 +38,12 @@ public class MouseAccessibilityService extends AccessibilityService {
         setupOverlay();
         log("AccessibilityService conectado");
 
-        new Thread(() -> {
-            log("Iniciando TCPServer");
-            new TCPServer().run();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                log("Iniciando TCPServer");
+                new TCPServer().run();
+            }
         }).start();
     }
 
@@ -69,17 +71,6 @@ public class MouseAccessibilityService extends AccessibilityService {
     public void performGlobal(int action) {
         log("Global action: " + action);
         performGlobalAction(action);
-    }
-
-    // Enviar texto al teclado
-    public void performKeyboard(String input) {
-        log("Escribiendo teclado: " + input);
-        for (char c : input.toCharArray()) {
-            KeyEvent event = new KeyEvent(KeyEvent.ACTION_DOWN, c);
-            dispatchKeyEvent(event);
-            event = new KeyEvent(KeyEvent.ACTION_UP, c);
-            dispatchKeyEvent(event);
-        }
     }
 
     // Overlay click-through con logs y botón cerrar
@@ -146,7 +137,12 @@ public class MouseAccessibilityService extends AccessibilityService {
         btnParams.x = 10;
         btnParams.y = 10;
 
-        closeButton.setOnClickListener(v -> removeOverlay());
+        closeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                removeOverlay();
+            }
+        });
 
         windowManager.addView(closeButton, btnParams);
     }
@@ -154,9 +150,17 @@ public class MouseAccessibilityService extends AccessibilityService {
     // Mostrar logs en overlay
     private void log(final String message) {
         if (logTextView != null) {
-            logTextView.post(() -> {
-                logTextView.append(message + "\n");
-                scrollView.post(() -> scrollView.fullScroll(ScrollView.FOCUS_DOWN));
+            logTextView.post(new Runnable() {
+                @Override
+                public void run() {
+                    logTextView.append(message + "\n");
+                    scrollView.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            scrollView.fullScroll(ScrollView.FOCUS_DOWN);
+                        }
+                    });
+                }
             });
         }
     }
@@ -195,10 +199,13 @@ public class MouseAccessibilityService extends AccessibilityService {
 
         windowManager.addView(tapView, params);
 
-        tapView.postDelayed(() -> {
-            try {
-                windowManager.removeView(tapView);
-            } catch (Exception e) { }
+        tapView.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    windowManager.removeView(tapView);
+                } catch (Exception e) { }
+            }
         }, 500);
     }
 
@@ -228,19 +235,22 @@ public class MouseAccessibilityService extends AccessibilityService {
                     final Socket client = server.accept();
                     log("Cliente conectado: " + client.getInetAddress());
 
-                    new Thread(() -> {
-                        try {
-                            BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
-                            String line;
-                            while ((line = in.readLine()) != null) {
-                                line = line.trim();
-                                log("Comando recibido: " + line);
-                                handleCommand(line);
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                                String line;
+                                while ((line = in.readLine()) != null) {
+                                    line = line.trim();
+                                    log("Comando recibido: " + line);
+                                    handleCommand(line);
+                                }
+                            } catch (Exception e) {
+                                log("Cliente desconectado o error: " + e.getMessage());
+                            } finally {
+                                try { client.close(); } catch (Exception ex) {}
                             }
-                        } catch (Exception e) {
-                            log("Cliente desconectado o error: " + e.getMessage());
-                        } finally {
-                            try { client.close(); } catch (Exception ex) {}
                         }
                     }).start();
                 }
@@ -269,9 +279,6 @@ public class MouseAccessibilityService extends AccessibilityService {
                     performGlobal(GLOBAL_ACTION_HOME);
                 } else if (line.contains("\"action\":\"back\"")) {
                     performGlobal(GLOBAL_ACTION_BACK);
-                } else if (line.contains("\"action\":\"keyboard\"")) {
-                    String text = line.split("\"text\":\"")[1].split("\"")[0];
-                    performKeyboard(text);
                 } else {
                     log("Comando no reconocido: " + line);
                 }
@@ -281,4 +288,3 @@ public class MouseAccessibilityService extends AccessibilityService {
         }
     }
 }
-
