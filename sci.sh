@@ -68,6 +68,14 @@ keyboard() {
             *)     key="$char" ;;
         esac
 
+
+        if [[ "$input" == "SCI_SPECIAL_BACKSPACE" ]]; then
+            eval "x=\${KEYBOARD_MAP_BACKSPACE_X}"
+            eval "y=\${KEYBOARD_MAP_BACKSPACE_Y}"
+            tap $x $y
+            exit # saltar Shift y el resto del procesamiento
+        fi
+
         # ==== Shift momentáneo para mayúsculas ====
         if [[ "$char" =~ [A-Z] || "$char" == "Ñ" ]]; then
             # Tap SHIFT antes de la letra
@@ -195,8 +203,8 @@ show_keyboard() {
 # ------------------- MAPEO DE TECLADO -------------------
 # NO EDITAR MANUALMENTE ENTRE ESTOS COMENTARIOS
 # --- KEYBOARD MAP START ---
-KEYBOARD_MAP_BACKSPACE_X=380
-KEYBOARD_MAP_BACKSPACE_Y=1512
+KEYBOARD_MAP_BACKSPACE_X=650
+KEYBOARD_MAP_BACKSPACE_Y=1450
 KEYBOARD_MAP_SPACE_X=380
 KEYBOARD_MAP_SPACE_Y=1512
 KEYBOARD_MAP_ABC_X=80
