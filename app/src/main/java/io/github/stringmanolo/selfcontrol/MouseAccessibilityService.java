@@ -5,6 +5,8 @@ import android.accessibilityservice.GestureDescription;
 import android.graphics.Color;
 import android.graphics.Path;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -23,6 +25,7 @@ public class MouseAccessibilityService extends AccessibilityService {
     private TextView logTextView;
     private ScrollView scrollView;
     private TextView closeButton;
+    private Handler mainHandler;
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) { }
@@ -35,6 +38,7 @@ public class MouseAccessibilityService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        mainHandler = new Handler(Looper.getMainLooper());
         setupOverlay();
         log("AccessibilityService conectado");
 
@@ -50,7 +54,7 @@ public class MouseAccessibilityService extends AccessibilityService {
     // Gestos
     public void performTap(float x, float y) {
         log("Tap en: " + x + "," + y);
-        showTapIndicator(x, y);
+/*        showTapIndicator(x, y); */
         Path path = new Path();
         path.moveTo(x, y);
         GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, 50);
@@ -75,84 +79,89 @@ public class MouseAccessibilityService extends AccessibilityService {
 
     // Overlay click-through con logs y botón cerrar
     private void setupOverlay() {
-        windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-
-        scrollView = new ScrollView(this);
-        logTextView = new TextView(this);
-        logTextView.setTextColor(Color.WHITE);
-        logTextView.setTextSize(14);
-        logTextView.setBackgroundColor(Color.argb(150, 0, 0, 0));
-        logTextView.setPadding(10, 10, 10, 10);
-
-        scrollView.addView(logTextView);
-
-        WindowManager.LayoutParams logParams;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            logParams = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                    android.graphics.PixelFormat.TRANSLUCENT);
-        } else {
-            logParams = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.TYPE_PHONE,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                    android.graphics.PixelFormat.TRANSLUCENT);
-        }
-        logParams.gravity = Gravity.TOP;
-        windowManager.addView(scrollView, logParams);
-
-        // Botón flotante para cerrar overlay
-        closeButton = new TextView(this);
-        closeButton.setText("X");
-        closeButton.setTextColor(Color.WHITE);
-        closeButton.setBackgroundColor(Color.argb(200, 255, 0, 0));
-        closeButton.setTextSize(18);
-        closeButton.setPadding(10, 10, 10, 10);
-
-        WindowManager.LayoutParams btnParams;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            btnParams = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                    android.graphics.PixelFormat.TRANSLUCENT);
-        } else {
-            btnParams = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.TYPE_PHONE,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                    android.graphics.PixelFormat.TRANSLUCENT);
-        }
-        btnParams.gravity = Gravity.TOP | Gravity.END;
-        btnParams.x = 10;
-        btnParams.y = 10;
-
-        closeButton.setOnClickListener(new View.OnClickListener() {
+        mainHandler.post(new Runnable() {
             @Override
-            public void onClick(View v) {
-                removeOverlay();
+            public void run() {
+                windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+
+                scrollView = new ScrollView(MouseAccessibilityService.this);
+                logTextView = new TextView(MouseAccessibilityService.this);
+                logTextView.setTextColor(Color.WHITE);
+                logTextView.setTextSize(14);
+                logTextView.setBackgroundColor(Color.argb(150, 0, 0, 0));
+                logTextView.setPadding(10, 10, 10, 10);
+
+                scrollView.addView(logTextView);
+
+                WindowManager.LayoutParams logParams;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    logParams = new WindowManager.LayoutParams(
+                            WindowManager.LayoutParams.MATCH_PARENT,
+                            WindowManager.LayoutParams.WRAP_CONTENT,
+                            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
+                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                            android.graphics.PixelFormat.TRANSLUCENT);
+                } else {
+                    logParams = new WindowManager.LayoutParams(
+                            WindowManager.LayoutParams.MATCH_PARENT,
+                            WindowManager.LayoutParams.WRAP_CONTENT,
+                            WindowManager.LayoutParams.TYPE_PHONE,
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
+                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                            android.graphics.PixelFormat.TRANSLUCENT);
+                }
+                logParams.gravity = Gravity.TOP;
+                windowManager.addView(scrollView, logParams);
+
+                // Botón flotante para cerrar overlay
+                closeButton = new TextView(MouseAccessibilityService.this);
+                closeButton.setText("X");
+                closeButton.setTextColor(Color.WHITE);
+                closeButton.setBackgroundColor(Color.argb(200, 255, 0, 0));
+                closeButton.setTextSize(18);
+                closeButton.setPadding(10, 10, 10, 10);
+
+                WindowManager.LayoutParams btnParams;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    btnParams = new WindowManager.LayoutParams(
+                            WindowManager.LayoutParams.WRAP_CONTENT,
+                            WindowManager.LayoutParams.WRAP_CONTENT,
+                            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                            android.graphics.PixelFormat.TRANSLUCENT);
+                } else {
+                    btnParams = new WindowManager.LayoutParams(
+                            WindowManager.LayoutParams.WRAP_CONTENT,
+                            WindowManager.LayoutParams.WRAP_CONTENT,
+                            WindowManager.LayoutParams.TYPE_PHONE,
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                            android.graphics.PixelFormat.TRANSLUCENT);
+                }
+                btnParams.gravity = Gravity.TOP | Gravity.END;
+                btnParams.x = 10;
+                btnParams.y = 10;
+
+                closeButton.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        removeOverlay();
+                    }
+                });
+
+                windowManager.addView(closeButton, btnParams);
             }
         });
-
-        windowManager.addView(closeButton, btnParams);
     }
 
     // Mostrar logs en overlay
     private void log(final String message) {
-        if (logTextView != null) {
-            logTextView.post(new Runnable() {
-                @Override
-                public void run() {
+        mainHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (logTextView != null) {
                     logTextView.append(message + "\n");
                     scrollView.post(new Runnable() {
                         @Override
@@ -161,65 +170,75 @@ public class MouseAccessibilityService extends AccessibilityService {
                         }
                     });
                 }
-            });
-        }
+            }
+        });
     }
-
+/*
     // Mostrar indicador visual de tap
     private void showTapIndicator(final float x, final float y) {
-        if (windowManager == null) return;
-
-        final TextView tapView = new TextView(this);
-        tapView.setBackgroundColor(Color.argb(200, 255, 0, 0)); // rojo
-        tapView.setWidth(50);
-        tapView.setHeight(50);
-
-        WindowManager.LayoutParams params;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            params = new WindowManager.LayoutParams(
-                    50,
-                    50,
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                    android.graphics.PixelFormat.TRANSLUCENT);
-        } else {
-            params = new WindowManager.LayoutParams(
-                    50,
-                    50,
-                    WindowManager.LayoutParams.TYPE_PHONE,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                    android.graphics.PixelFormat.TRANSLUCENT);
-        }
-
-        params.x = (int) x - 25;
-        params.y = (int) y - 25;
-        params.gravity = Gravity.TOP | Gravity.START;
-
-        windowManager.addView(tapView, params);
-
-        tapView.postDelayed(new Runnable() {
+        mainHandler.post(new Runnable() {
             @Override
             public void run() {
-                try {
-                    windowManager.removeView(tapView);
-                } catch (Exception e) { }
+                if (windowManager == null) return;
+
+                final TextView tapView = new TextView(MouseAccessibilityService.this);
+                tapView.setBackgroundColor(Color.argb(200, 255, 0, 0)); // rojo
+                tapView.setWidth(50);
+                tapView.setHeight(50);
+
+                WindowManager.LayoutParams params;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    params = new WindowManager.LayoutParams(
+                            50,
+                            50,
+                            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                            android.graphics.PixelFormat.TRANSLUCENT);
+                } else {
+                    params = new WindowManager.LayoutParams(
+                            50,
+                            50,
+                            WindowManager.LayoutParams.TYPE_PHONE,
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                            android.graphics.PixelFormat.TRANSLUCENT);
+                }
+
+                params.x = (int) x - 25;
+                params.y = (int) y - 25;
+                params.gravity = Gravity.TOP | Gravity.START;
+
+                windowManager.addView(tapView, params);
+
+                tapView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            windowManager.removeView(tapView);
+                        } catch (Exception e) { }
+                    }
+                }, 500);
             }
-        }, 500);
-    }
+        });
+    }*/
 
     // Remover overlay y botón
     private void removeOverlay() {
-        try {
-            if (scrollView != null) windowManager.removeView(scrollView);
-            if (closeButton != null) windowManager.removeView(closeButton);
-            scrollView = null;
-            logTextView = null;
-            closeButton = null;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        mainHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    if (scrollView != null) windowManager.removeView(scrollView);
+                    if (closeButton != null) windowManager.removeView(closeButton);
+                    scrollView = null;
+                    logTextView = null;
+                    closeButton = null;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        });
     }
 
     // TCPServer multicliente
@@ -242,9 +261,16 @@ public class MouseAccessibilityService extends AccessibilityService {
                                 BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
                                 String line;
                                 while ((line = in.readLine()) != null) {
-                                    line = line.trim();
-                                    log("Comando recibido: " + line);
-                                    handleCommand(line);
+                                    final String finalLine = line.trim();
+                                    log("Comando recibido: " + finalLine);
+                                    
+                                    // Ejecutar el manejo del comando en el hilo principal
+                                    mainHandler.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            handleCommand(finalLine);
+                                        }
+                                    });
                                 }
                             } catch (Exception e) {
                                 log("Cliente desconectado o error: " + e.getMessage());
