@@ -17,7 +17,7 @@ keyboard() {
     local in_num=false
 
     # regex de números y símbolos (todo lo que se escribe desde NUMERIC)
-    local NUMERIC_REGEX='[0-9@#\$%&*+\-\(\)!\"'"'"':;\/?,\.]'
+    local NUMERIC_REGEX='[0-9@#\$%&*+-\(\)!\"'"'"':;\/?,\.]'
 
     for (( i=0; i<${#input}; i++ )); do
         char="${input:$i:1}"
