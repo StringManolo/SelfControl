@@ -1,5 +1,7 @@
 # SelfControl
 
+[Youtube Demo](https://youtube.com/watch?v=4BiNTJSltBQ)
+
 Control your Android device programatically without root. 
 Binds a tcp local server to port 5000. 
 You can send **"commands"** to the server with any network client.
